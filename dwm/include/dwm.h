@@ -816,5 +816,13 @@ void dwm_serial_compile(void);
  * @brief Enables SHELL for compilation
  */
 void dwm_shell_compile(void);
+int acc_setup(void);
+int acc_values(void);
+struct acc_xyz
+{
+	int16_t acc_x;
+	int16_t acc_y;
+	int16_t acc_z;
+}acv;
 
 #endif /* DWM_H_ */

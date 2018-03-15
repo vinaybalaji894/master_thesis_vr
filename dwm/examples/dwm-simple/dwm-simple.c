@@ -85,7 +85,66 @@ void on_dwm_evt(dwm_evt_t *p_evt, void *p_data)
  * Application thread
  *
  * @param[in] data  Pointer to user data
+ *
+ *
+ *
  */
+ static flag =0;
+
+int acc_setup()
+{
+	uint8_t setbyte[2];
+    setbyte[0]=0x20;
+    setbyte[1]=0x97;
+	uint8_t rcbyte;
+	dwm_i2c_write(0x33>>1,&setbyte,2,true);
+	dwm_i2c_read(0x33>>1,&rcbyte,1);
+	uint8_t reg4[2];
+	reg4[0]=0x23;
+	reg4[1]=0x18;
+	uint8_t rcreg4;
+	dwm_i2c_write(0x33>>1,&reg4,2,true);
+	dwm_i2c_read(0x33>>1,&rcreg4,1);
+	printf("%d\t%d\n",rcbyte,rcreg4);
+   // flag=3;
+	return 0;
+}
+
+
+int acc_val()
+{  //Function to receive the accelerometer data directly from the registers
+
+	// Declaration of the receive buffer
+	      uint8_t rvdata[6];
+	// Declaration of the transmit buffer. Input parameter the address of the LSB of the x-axis of the
+	// accelerometer. Set the MSB to 1 in order to iterate and read multiple addresses in one shot.
+	      uint8_t icbyte=0xA8;
+    // Master request
+		  dwm_i2c_write(0x33>>1,&icbyte,1,true);
+    // Slave reply. Reading the LSB and MSB of all axes into the single buffer
+		  dwm_i2c_read(0x33>>1,&rvdata,6);
+    // Print Statement: for debugging
+	      //printf("%d\t%d\t%d\t%d\t%d\t%d\t\n",rvdata[0],rvdata[1],rvdata[2],rvdata[3],rvdata[4],rvdata[5]);
+		  //printf("Next iteration\n");
+
+    // Signed 16 - bit integers for the X,Y and Z access
+		 // int16_t acc_x;
+		  acv.acc_x=rvdata[1];
+          acv.acc_x=(acv.acc_x<<8)|(rvdata[0]);
+
+		 // int16_t acc_y;
+		  acv.acc_y=rvdata[3];
+		  acv.acc_y=(acv.acc_y<<8)|(rvdata[2]);
+
+		  //int16_t acc_z;
+		  acv.acc_z=rvdata[5];
+		  acv.acc_z=(acv.acc_z<<8)|(rvdata[4]);
+     // Print the values for acceleration, for debugging purposes
+		  //printf("%d\t%d\t%d\t\n",acv.acc_x,acv.acc_y,acv.acc_z);
+		  //printf("Iteration Change\n");
+
+return 0;
+}
 void app_thread_entry(uint32_t data)
 {
 	dwm_cfg_tag_t cfg_tag;
@@ -111,7 +170,7 @@ void app_thread_entry(uint32_t data)
 		(cfg.common.led_en != true)) {
 
 		/* Configure device as TAG */
-		cfg_tag.accel_en = false;
+		cfg_tag.accel_en =true;
 		cfg_tag.loc_engine_en = true;
 		cfg_tag.low_power_en = false;
 		cfg_tag.meas_mode = DWM_MEAS_MODE_TWR;
@@ -145,15 +204,21 @@ void app_thread_entry(uint32_t data)
 	} else {
 		printf("i2c: write failed (%d)\n", rv);
 	}
+	acc_setup();
 
 	while (1) {
 		/* Thread loop */
-		dwm_pos_get(&pos);
-		printf("x=%ld, y=%ld, z=%ld, qf=%u \n", pos.x, pos.y, pos.z, pos.qf);
-		printf("\t\t time=%lu \n", dwm_systime_us_get());
-		printf("Hello Dickhead\n");
+		//dwm_pos_get(&pos);
+		//printf("x=%ld, y=%ld, z=%ld, qf=%u \n", pos.x, pos.y, pos.z, pos.qf);
+		//printf("S:%lu \n", dwm_systime_us_get());
+		//printf("Flag:%d\n",flag);
 		//printf("Accelerometer chip ID: %u\n", i2cbyte);
-		dwm_thread_delay(100);
+		acc_val();
+		//acc_setup();
+		printf("%lu,%d,%d,%d\n",dwm_systime_us_get(),acv.acc_x,acv.acc_y,acv.acc_z);
+		//printf("F:%lu \n", dwm_systime_us_get());
+
+		//dwm_thread_delay(100);
 	}
 }
 
@@ -168,10 +233,10 @@ void dwm_user_start(void)
 	uint8_t hndl;
 	int rv;
 
-	dwm_shell_compile();
+	//dwm_shell_compile();
 	dwm_ble_compile();
 	dwm_le_compile();
-	dwm_serial_compile();
+	//dwm_serial_compile();
 
 	/* Create thread */
 	rv = dwm_thread_create(THREAD_APP_PRIO, app_thread_entry, (void*)NULL,
