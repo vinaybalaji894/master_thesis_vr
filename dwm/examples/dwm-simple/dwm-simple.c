@@ -37,7 +37,10 @@ do {							\
  *
  * @param[in] p_evt  Pointer to event structure
  * @param[in] p_data Pointer to user data
+ *
+ *
  */
+int return_value;
 void on_dwm_evt(dwm_evt_t *p_evt, void *p_data)
 {
 	int i;
@@ -85,11 +88,7 @@ void on_dwm_evt(dwm_evt_t *p_evt, void *p_data)
  * Application thread
  *
  * @param[in] data  Pointer to user data
- *
- *
- *
  */
- static flag =0;
 
 int acc_setup()
 {
@@ -145,6 +144,43 @@ int acc_val()
 
 return 0;
 }
+//ioannis
+void accelerometer_setup(void)
+{
+uint8_t return_value;
+uint8_t bytes[2];
+
+// reboot memory
+bytes[0] = 0x24;
+bytes[1] = 0x80;
+return_value = dwm_i2c_write(0x33 >> 1, bytes, 2, false);
+APP_ERR_CHECK(return_value);
+
+// power-up - 200Hz = 67
+bytes[0] = 0x20;
+bytes[1] = 0x67;
+return_value = dwm_i2c_write(0x33 >> 1, bytes, 2, false);
+APP_ERR_CHECK(return_value);
+//
+// // INT1 ZYXDA
+// bytes[0] = 0x22;
+// bytes[1] = 0x10;
+// return_value = dwm_i2c_write(0x33 >> 1, bytes, 2, false);
+// APP_ERR_CHECK(return_value);
+
+// enable fifo
+bytes[0] = 0x24;
+bytes[1] = 0x40;
+return_value = dwm_i2c_write(0x33 >> 1, bytes, 2, false);
+APP_ERR_CHECK(return_value);
+
+//emable bypass mode
+bytes[0] = 0x2e;
+bytes[1] = 0x00;
+return_value = dwm_i2c_write(0x33 >> 1, bytes, 2, false);
+APP_ERR_CHECK(return_value);
+}
+
 void app_thread_entry(uint32_t data)
 {
 	dwm_cfg_tag_t cfg_tag;
@@ -170,7 +206,7 @@ void app_thread_entry(uint32_t data)
 		(cfg.common.led_en != true)) {
 
 		/* Configure device as TAG */
-		cfg_tag.accel_en =true;
+		cfg_tag.accel_en = false;
 		cfg_tag.loc_engine_en = true;
 		cfg_tag.low_power_en = false;
 		cfg_tag.meas_mode = DWM_MEAS_MODE_TWR;
@@ -204,23 +240,46 @@ void app_thread_entry(uint32_t data)
 	} else {
 		printf("i2c: write failed (%d)\n", rv);
 	}
-	acc_setup();
+	//acc_setup();
+	accelerometer_setup();
 
-	while (1) {
+    // while (1) {
 		/* Thread loop */
 		//dwm_pos_get(&pos);
 		//printf("x=%ld, y=%ld, z=%ld, qf=%u \n", pos.x, pos.y, pos.z, pos.qf);
-		//printf("S:%lu \n", dwm_systime_us_get());
-		//printf("Flag:%d\n",flag);
+		//printf("\t\t time=%lu \n", dwm_systime_us_get());
+		//printf("Hello Dickhead\n");
+		//acc_val();
+		//printf("%lu,%d,%d,%d\n",dwm_systime_us_get(),acv.acc_x,acv.acc_y,acv.acc_z);
 		//printf("Accelerometer chip ID: %u\n", i2cbyte);
-		acc_val();
-		//acc_setup();
-		printf("%lu,%d,%d,%d\n",dwm_systime_us_get(),acv.acc_x,acv.acc_y,acv.acc_z);
-		//printf("F:%lu \n", dwm_systime_us_get());
-
 		//dwm_thread_delay(100);
+	//}
+//ioannis
+	while (1) {
+    uint8_t bytes[6];
+	// Poll status register for new data on any axis
+	bytes[0] = 0x27;
+	return_value = dwm_i2c_write(0x33 >> 1, bytes, 1, false);
+	APP_ERR_CHECK(return_value);
+	return_value = dwm_i2c_read(0x33 >> 1, bytes, 1);
+	APP_ERR_CHECK(return_value);
+
+	if (bytes[0] & 0x08) // if xyzda bit is set, get data
+	{
+	bytes[0] = 0xA7; // 0x27 + 1 MSB for consecutive read
+	return_value = dwm_i2c_write(0x33 >> 1, bytes, 1, false);
+	APP_ERR_CHECK(return_value);
+	return_value = dwm_i2c_read(0x33 >> 1, bytes, 1+6);
+	APP_ERR_CHECK(return_value);
+	printf("%lu   %5d,%5d,%5d\n", dwm_systime_us_get(), (int16_t)( bytes[1] | (bytes[2]<<8)), (int16_t)( bytes[3] | (bytes[4]<<8)), (int16_t)( bytes[5] | (bytes[6]<<8)));
+	// putchar(bytes[0]+0x57);
+	// putchar('\n');
 	}
+	}
+
+
 }
+
 
 /**
  * Application entry point. Initialize application thread.
